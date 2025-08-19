@@ -24,8 +24,8 @@ from selenium_stealth import stealth
 import psutil
 import tempfile
 import shutil
-from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
-from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives import serialization, hashes
+from cryptography.hazmat.primitives.asymmetric import padding
 import base64
 import hashlib
 import time as time_module
@@ -34,6 +34,7 @@ import urllib.parse as url_parse
 
 logging.basicConfig(level=logging.DEBUG, format='%(asctime)s [%(levelname)s] %(message)s')
 logging.debug("Script started")
+# ID: L1
 
 def cleanup_browser_processes():
     try:
@@ -57,6 +58,7 @@ def cleanup_browser_processes():
     except Exception as e:
         logging.warning(f"Error cleaning up processes: {e}")
         return 0
+# ID: L26
 
 async def scroll_page(method, page=None, driver=None):
     try:
@@ -84,6 +86,7 @@ async def scroll_page(method, page=None, driver=None):
         logging.debug("Page scrolled successfully")
     except Exception as e:
         logging.debug(f"Failed to scroll page: {e}")
+# ID: L49
 
 async def wait_for_video_elements(method, page=None, driver=None, timeout=60000):
     try:
@@ -93,6 +96,7 @@ async def wait_for_video_elements(method, page=None, driver=None, timeout=60000)
             WebDriverWait(driver, timeout / 1000).until(EC.presence_of_element_located((By.CSS_SELECTOR, "video, iframe, embed, source")))
     except Exception as e:
         logging.debug(f"Failed to wait for video elements: {e}")
+# ID: L58
 
 async def handle_popup(page):
     try:
@@ -103,6 +107,7 @@ async def handle_popup(page):
             logging.debug("Accepted pop-up")
     except Exception as e:
         logging.debug(f"Failed to handle pop-up: {e}")
+# ID: L66
 
 def handle_selenium_popup(driver):
     try:
@@ -112,6 +117,7 @@ def handle_selenium_popup(driver):
         logging.debug("Accepted Selenium pop-up")
     except Exception:
         pass
+# ID: L74
 
 async def get_video_properties(method, page=None, driver=None, soup_element=None, max_retries=3):
     try:
@@ -181,6 +187,7 @@ async def get_video_properties(method, page=None, driver=None, soup_element=None
             'height': 0,
             'ad_content_ratio': 0.0
         }
+# ID: L123
 
 async def describe_link(link_text, target_url):
     try:
@@ -194,6 +201,7 @@ async def describe_link(link_text, target_url):
     except Exception as e:
         logging.debug(f"Error describing link: {e}")
         return "Unnamed link"
+# ID: L136
 
 def check_price_override(url, price):
     override_file = r"C:\Users\mjbao\Desktop\Vidium\Final Scraper\scraper_app\price_overrides.json"
@@ -208,6 +216,7 @@ def check_price_override(url, price):
     except Exception as e:
         logging.error(f"Error checking price override for {url}: {e}")
         return False
+# ID: L147
 
 def log_price_override_request(url, price):
     override_file = r"C:\Users\mjbao\Desktop\Vidium\Final Scraper\scraper_app\price_overrides.json"
@@ -224,6 +233,7 @@ def log_price_override_request(url, price):
                 json.dump(overrides, f, indent=2)
     except Exception as e:
         logging.error(f"Error logging price override for {url}: {e}")
+# ID: L160
 
 async def crawl_url(url, base_dir, run_name, run_count, consolidated_file, use_playwright=True):
     link_data = []
@@ -257,26 +267,35 @@ async def crawl_url(url, base_dir, run_name, run_count, consolidated_file, use_p
                     proxy={"server": proxy},
                     ignore_https_errors=True
                 )
+                # ID: L167
                 # Load private key
                 with open(r'C:\Users\mjbao\Desktop\Vidium\Final Scraper\scraper_app\private-key.pem', 'rb') as f:
                     private_key_pem = f.read()
+                # ID: L169
                 private_key = serialization.load_pem_private_key(private_key_pem, password=None)
+                # ID: L170
 
                 # Compute JWK and thumbprint
                 public_key = private_key.public_key()
-                public_bytes = public_key.public_bytes(
-                    encoding=serialization.Encoding.Raw,
-                    format=serialization.PublicFormat.Raw
-                )
-                x = base64.urlsafe_b64encode(public_bytes).decode('utf-8').rstrip('=')
-                jwk = {"kty": "OKP", "crv": "Ed25519", "x": x}
+                # ID: L172
+                public_numbers = public_key.public_numbers()
+                # ID: L173
+                n = base64.urlsafe_b64encode(public_numbers.n.to_bytes((public_numbers.n.bit_length() + 7) // 8, byteorder='big')).decode('utf-8').rstrip('=')
+                # ID: L174
+                e = base64.urlsafe_b64encode(public_numbers.e.to_bytes((public_numbers.e.bit_length() + 7) // 8, byteorder='big')).decode('utf-8').rstrip('=')
+                # ID: L175
+                jwk = {"kty": "RSA", "n": n, "e": e}
+                # ID: L176
                 jwk_json = json.dumps(jwk, sort_keys=True, separators=(',', ':'))
+                # ID: L177
                 thumbprint = base64.urlsafe_b64encode(
                     hashlib.sha256(jwk_json.encode('utf-8')).digest()
                 ).decode('utf-8').rstrip('=')
+                # ID: L180
 
                 # Signature agent URL
                 signature_agent_url = 'https://bot-directory.rubiconcaesar.workers.dev/.well-known/http-message-signatures-directory'
+                # ID: L182
 
                 async def get_signed_headers(request_url):
                     authority = url_parse.urlparse(request_url).netloc
@@ -284,19 +303,25 @@ async def crawl_url(url, base_dir, run_name, run_count, consolidated_file, use_p
                     expires = created + 300  # 5 minutes
                     nonce = base64.urlsafe_b64encode(os_module.urandom(32)).decode('utf-8').rstrip('=')
                     components = '("@authority" "signature-agent")'
-                    params = f';created={created};expires={expires};keyid="{thumbprint}";nonce="{nonce}";alg="ed25519";tag="web-bot-auth"'
+                    params = f';created={created};expires={expires};keyid="{thumbprint}";nonce="{nonce}";alg="rsa-sha256";tag="web-bot-auth"'
                     sig_input = f'sig={components}{params}'
                     base = f'"@authority": {authority}\n"signature-agent": "{signature_agent_url}"\n"@signature-params": {components}{params}'
-                    sig_bytes = private_key.sign(base.encode('utf-8'))
+                    sig_bytes = private_key.sign(
+                        base.encode('utf-8'),
+                        padding.PKCS1v15(),
+                        hashes.SHA256()
+                    )
                     sig = base64.urlsafe_b64encode(sig_bytes).decode('utf-8').rstrip('=')
                     return {
                         'Signature-Agent': f'"{signature_agent_url}"',
                         'Signature-Input': sig_input,
                         'Signature': f'sig=:{sig}:'
                     }
+                # ID: L198
 
                 # Max price willing to pay per crawl (in USD; ~0.01374 CAD)
                 max_crawl_price = 0.01
+                # ID: L200
 
                 async def sign_and_pay_handler(route):
                     headers = dict(route.request.headers)
@@ -330,10 +355,14 @@ async def crawl_url(url, base_dir, run_name, run_count, consolidated_file, use_p
                                     log_price_override_request(route.request.url, price)
                                     logging.error(f"Price {price} USD exceeds max {max_crawl_price} USD for {route.request.url}")
                     await route.fulfill(response=response)
+                # ID: L224
 
                 page = await context.new_page()
+                # ID: L225
                 await page.route("**/*", sign_and_pay_handler)
+                # ID: L226
                 page.on("popup", lambda popup: asyncio.create_task(handle_popup(popup)))
+                # ID: L227
                 await page.goto(url, wait_until="networkidle", timeout=180000)
                 run_data['urls_processed'].append({'url': url, 'success': True, 'loaded': url, 'proxy': True})
                 await page.wait_for_load_state("networkidle")
@@ -589,6 +618,7 @@ async def crawl_url(url, base_dir, run_name, run_count, consolidated_file, use_p
             logging.error(f"Failed to write to consolidated file: {e}")
 
     return link_data, run_data
+# ID: L350
 
 def main():
     try:
@@ -631,7 +661,9 @@ def main():
     except Exception as e:
         logging.error(f"Error in main: {e}")
         sys.exit(1)
+# ID: L387
 
 if __name__ == "__main__":
     main()
+# ID: L389
 ```
