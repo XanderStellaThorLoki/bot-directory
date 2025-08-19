@@ -1,3 +1,5 @@
 name = "bot-directory"
-compatibility_date = "2025-08-04"
+compatibility_date = "2025-08-19"
 main = "worker.js"
+[observability.logs]
+enabled = true
