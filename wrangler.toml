@@ -1,5 +1,8 @@
 name = "bot-directory"
-compatibility_date = "2025-08-19"
 main = "worker.js"
-[observability.logs]
-enabled = true
+compatibility_date = "2025-08-19"
+[secrets_store_secrets]
+[[secrets_store_secrets]]
+binding = "PRIVATE_KEY_BINDING"
+store_id = "0307ba56de8c4b37be9ed7d02aeed255"
+secret_name = "PRIVATE_KEY"
